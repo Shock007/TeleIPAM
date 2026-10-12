@@ -44,12 +44,7 @@ SQL_ECHO: bool = os.getenv("SQL_ECHO", "false").lower() == "true"
 
 PROVIDER_PIN: str | None = os.getenv("PROVIDER_PIN")
 
-# --- Automatización (APScheduler) ---------------------------------------
-
-SCHEDULER_ENABLED: bool = os.getenv("SCHEDULER_ENABLED", "true").lower() == "true"
-SCAN_INTERVAL_HOURS: int = int(os.getenv("SCAN_INTERVAL_HOURS", "6")) if os.getenv("SCAN_INTERVAL_HOURS") else 6
-SCAN_CONCURRENCY: int = int(os.getenv("SCAN_CONCURRENCY", "30")) if os.getenv("SCAN_CONCURRENCY") else 30
-SCAN_TIMEOUT: int = int(os.getenv("SCAN_TIMEOUT", "2")) if os.getenv("SCAN_TIMEOUT") else 2
+# Automatización (APScheduler): usar get_scheduler_enabled(), get_scan_*() (leen os.environ en cada llamada).
 
 # Configuración y conexión con Wisphub (API REST de terceros para auditoría de IP's).
 

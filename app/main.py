@@ -17,7 +17,7 @@ from app.api.routers.clients import router as clients_router
 from app.api.routers.ips import router as ips_router
 from app.api.routers.scheduler import router as scheduler_router
 from app.api.routers.subnets import router as subnets_router
-from app.config import SCHEDULER_ENABLED
+from app.config import get_scheduler_enabled
 from app.services.scheduler import shutdown_scheduler, start_scheduler
 from app.spa import SPAStaticFiles
 from app.api.routers.env import router as env_router
@@ -33,7 +33,7 @@ APP_DIST = Path(__file__).resolve().parent.parent / "static" / "app"
 async def lifespan(app: FastAPI):
     # Con varios workers de uvicorn cada uno arrancaría su scheduler:
     # usar un solo worker o SCHEDULER_ENABLED=true en uno solo.
-    if SCHEDULER_ENABLED:
+    if get_scheduler_enabled():
         start_scheduler()
     try:
         yield
