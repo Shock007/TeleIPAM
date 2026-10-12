@@ -2,7 +2,6 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
 from app.api.schemas import SchedulerStatus
-from app.config import SCAN_INTERVAL_HOURS, SCHEDULER_ENABLED
 from app.services.scheduler import JOB_ID, run_scheduled_audit, scheduler
 from app.api.deps import NO_DB_MSG
 from app.database import SessionLocal

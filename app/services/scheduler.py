@@ -16,7 +16,7 @@ import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from app.config import SCAN_CONCURRENCY, SCAN_INTERVAL_HOURS, SCAN_TIMEOUT
+
 from app.crud import subnet as subnet_crud
 from app.services.range_scanner import ips_from_network, run_range_scan
 from app.config import (
