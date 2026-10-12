@@ -18,6 +18,11 @@ DEFAULT_ENV_TEMPLATE = {
 }
 MANAGED_KEYS = list(DEFAULT_ENV_TEMPLATE)
 
+# Se aplican en caliente (scheduler); el resto exige reiniciar el servidor.
+HOT_KEYS = frozenset({
+    "SCHEDULER_ENABLED", "SCAN_INTERVAL_HOURS", "SCAN_CONCURRENCY", "SCAN_TIMEOUT",
+})
+
 # campo del request -> variable del .env
 FIELD_TO_KEY = {
     "database_url": "DATABASE_URL",
@@ -120,9 +125,6 @@ def update_env_file(data: dict) -> tuple[bool, str | None, bool]:
         else:
             os.environ.pop(key, None)
 
-    after = _raw()
-    restart_required =     HOT_KEYS = {"SCHEDULER_ENABLED", "SCAN_INTERVAL_HOURS", "SCAN_CONCURRENCY",
-                "SCAN_TIMEOUT"}
     after = _raw()
     restart_required = any(
         current.get(k) != after.get(k) for k in MANAGED_KEYS if k not in HOT_KEYS
