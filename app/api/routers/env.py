@@ -1,7 +1,6 @@
 import re
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.services.env_service import public_config, update_env_file
@@ -11,8 +10,6 @@ from app.api.security import require_admin
 
 router = APIRouter(prefix="/api/v1/env", tags=["environment"],
                    dependencies=[Depends(require_admin)])
-
-router = APIRouter(prefix="/api/v1/env", tags=["environment"])
 
 _UNSAFE = re.compile(r"[\s#\"'\\]")
 _DB_URL = re.compile(r"^(postgresql|mysql)(\+\w+)?://\S+$")

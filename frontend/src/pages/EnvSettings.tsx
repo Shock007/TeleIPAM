@@ -84,7 +84,9 @@ function Num({ label, value, onChange, min, max }: {
 }
 
 /** El formulario se monta con la config ya cargada; `key` lo reinicia tras guardar (#15). */
-function EnvForm({ cfg }: { cfg: EnvConfig }) {
+function EnvForm({ cfg, adminPin, onAdminPin }: {
+  cfg: EnvConfig; adminPin: string; onAdminPin: (p: string) => void
+}) {
   const qc = useQueryClient()
   const [restart, setRestart] = useState(false)
 
@@ -98,12 +100,15 @@ function EnvForm({ cfg }: { cfg: EnvConfig }) {
   const [timeout, setTimeoutS] = useState(String(cfg.scan_timeout))
 
   const mutation = useMutation({
-    mutationFn: (b: EnvUpdate) => api.env.update(b),
-    onSuccess: (res) => {
+    mutationFn: (b: EnvUpdate) => api.env.update(b, adminPin || undefined),
+    onSuccess: (res, vars) => {
       toast.success(res.message)
       if (res.warning) toast.warning(res.warning)
       setRestart(res.restart_required)
-      qc.setQueryData(['env'], res.current_config) // #15: remonta el formulario con lo guardado
+      // Si se cambió/quitó el PIN, el siguiente request debe usar el nuevo valor.
+      const next = vars.provider_pin === undefined ? adminPin : vars.provider_pin
+      onAdminPin(next)
+      qc.setQueryData(['env', next], res.current_config) // #15: remonta el formulario con lo guardado
     },
     onError: (err) => toast.error(errorMessage(err)),
   })
@@ -221,15 +226,35 @@ function EnvForm({ cfg }: { cfg: EnvConfig }) {
 }
 
 export function EnvSettings() {
-  const env = useQuery({ queryKey: ['env'], queryFn: () => api.env.get() })
+  const [adminPin, setAdminPin] = useState('') // PIN aplicado a las peticiones
+  const [draft, setDraft] = useState('')
+  const env = useQuery({
+    queryKey: ['env', adminPin],
+    queryFn: () => api.env.get(adminPin || undefined),
+  })
 
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Variables del entorno</h1>
+      <form
+        className="flex max-w-3xl flex-wrap items-end gap-2"
+        onSubmit={(e) => { e.preventDefault(); setAdminPin(draft.trim()) }}
+      >
+        <div className="grid flex-1 gap-1.5">
+          <label className="text-sm font-medium">PIN de administrador</label>
+          <Input type="password" autoComplete="new-password" value={draft}
+            placeholder="Requerido si ya hay un PIN configurado"
+            onChange={(e) => setDraft(e.target.value)} />
+        </div>
+        <Button type="submit" variant="outline">Aplicar</Button>
+      </form>
       {env.isPending && <p className="text-sm text-muted-foreground">Cargando configuración...</p>}
       {env.isError && <p className="text-sm text-destructive">{errorMessage(env.error)}</p>}
       {/* key: cualquier cambio en lo guardado reinicia el estado local del formulario */}
-      {env.isSuccess && <EnvForm key={JSON.stringify(env.data)} cfg={env.data} />}
+      {env.isSuccess && (
+        <EnvForm key={JSON.stringify(env.data)} cfg={env.data} adminPin={adminPin}
+          onAdminPin={(p) => { setAdminPin(p); setDraft(p) }} />
+      )}
     </div>
   )
 }
