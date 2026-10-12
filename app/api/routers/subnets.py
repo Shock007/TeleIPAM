@@ -10,7 +10,6 @@ from app.crud import subnet as subnet_crud
 
 router = APIRouter(prefix="/api/v1/subnets", tags=["subnets"])
 
-
 def _get_or_404(db: Session, subnet_id: int):
     obj = subnet_crud.get_subnet(db, subnet_id)
     if not obj:
@@ -78,7 +77,6 @@ def export_subnet(subnet_id: int, db: Session = Depends(get_db)):
     except SubnetReportError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     
-    content = build_subnet_report(subnet, ips)
     
     filename = f"reporte_subred_{subnet.cidr.replace('/', '_')}.xlsx"
     return Response(
