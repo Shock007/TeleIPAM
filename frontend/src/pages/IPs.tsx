@@ -12,6 +12,7 @@ import { IPCreateDialog } from '@/components/IPCreateDialog'
 import { IPHistoryDialog } from '@/components/IPHistoryDialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { ReleaseDialog } from '@/components/ReleaseDialog'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -41,6 +42,7 @@ export function IPsPage() {
   const [target, setTarget] = useState<IPAddressRead | null>(null)
   const [historyFor, setHistoryFor] = useState<IPAddressRead | null>(null)
   const [creating, setCreating] = useState(false)
+  const [releasing, setReleasing] = useState<IPAddressRead | null>(null)
 
   const subnets = useQuery({
     queryKey: ['subnets', 'all'],
@@ -170,6 +172,9 @@ export function IPsPage() {
                     {new Date(ip.updated_at).toLocaleString('es-CO')}
                   </TableCell>
                   <TableCell className="space-x-2 text-right">
+                    {ip.status === 'ASSIGNED' && (
+                      <Button variant="outline" size="xs" onClick={() => setReleasing(ip)}>Liberar</Button>
+                      )}
                     <Button variant="outline" size="xs" onClick={() => setHistoryFor(ip)}>Historial</Button>
                     <Button variant="outline" size="xs" onClick={() => setTarget(ip)}>Asignar</Button>
                   </TableCell>
@@ -215,6 +220,11 @@ export function IPsPage() {
         />
       )}
       {creating && <IPCreateDialog onClose={() => setCreating(false)} />}
+      {releasing && (<ReleaseDialog
+      key={releasing.id}
+      ip={releasing}
+      clientName={releasing.client_id ? clientById.get(releasing.client_id) : undefined}
+      onClose={() => setReleasing(null)}/>)}
     </div>
   )
 }

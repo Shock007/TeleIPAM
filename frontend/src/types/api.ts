@@ -12,6 +12,10 @@ export interface IPAddressRead {
   created_at: string
   updated_at: string
 }
+export interface IPReleaseRequest {
+  status: 'FREE' | 'ACTIVE'
+  details?: string | null
+}
 export interface IPCreateRequest {
   ip_address: string
   subnet_id: number
@@ -92,6 +96,8 @@ export interface IPQueryResponse {
   tcp: Record<string, boolean> | null // claves de puerto llegan como string en JSON
   evaluation: Record<string, unknown> | null
   note: string | null
+  client_id: number | null
+  client_name: string | null
 }
 
 // Subnets

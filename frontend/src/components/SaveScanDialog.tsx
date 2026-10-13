@@ -6,6 +6,7 @@ import { api } from '@/api/endpoints'
 import { errorMessage } from '@/lib/http'
 import { enclosingCidr, ipInCidr } from '@/lib/net'
 import { StatusBadge } from '@/components/StatusBadge'
+import { NoResponseBadge } from '@/components/NoResponseBadge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -22,6 +23,7 @@ export interface ScanItem {
   registered: boolean
   previous?: string | null
   next?: string | null
+  clientName?: string | null
 }
 
 type Choice = 'skip' | 'register' | 'create'
@@ -67,6 +69,12 @@ export function SaveScanDialog({ items, method, single, onSaved, onClose }: Prop
   const [cidr, setCidr] = useState<string | null>(null)
   const [name, setName] = useState('Subred escaneada')
   const [clientId, setClientId] = useState(NONE)
+  const [release, setRelease] = useState(false) // liberar IP asignada sin respuesta
+
+  const one = items[0]
+  // Consulta única: asignada, con cliente, y no respondió.
+  const noResponse = !!single && !!one && one.registered && !one.is_up &&
+    one.previous === 'ASSIGNED' && one.next === 'ASSIGNED'
 
   const eff: Choice = choice ?? (unreg.length === 0 ? 'skip' : uncovered.length > 0 ? 'create' : 'register')
   const cidrV = cidr ?? suggested
@@ -82,22 +90,31 @@ export function SaveScanDialog({ items, method, single, onSaved, onClose }: Prop
 
   const clientItems: Record<string, string> = { [NONE]: 'Sin cliente' }
   clientList.forEach((c) => { clientItems[String(c.id)] = c.full_name })
-  const showClient = single && (registered.length > 0 || eff !== 'skip')
+  // El selector solo aparece si la IP aún no tiene cliente.
+  const showClient = single && !one?.clientName && (registered.length > 0 || eff !== 'skip')
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.ips.commit({
+    mutationFn: async (): Promise<string> => {
+      if (release && one) {
+        await api.ips.release(one.ip_address, {
+          status: 'ACTIVE', details: 'Liberada tras consulta única sin respuesta',
+        })
+        return `IP ${one.ip_address} liberada: queda como Activa sin registrar.`
+      }
+      const r = await api.ips.commit({
         results: items.map((i) => ({ ip_address: i.ip_address, is_up: i.is_up })),
         method,
         register_unregistered: eff !== 'skip',
         new_subnet: eff === 'create' ? { cidr: cidrV, name: name.trim() } : null,
         client_id: showClient && clientId !== NONE ? Number(clientId) : null,
-      }),
-    onSuccess: (r) => {
+      })
       const parts = [`${r.updated} actualizada(s)`, `${r.registered} registrada(s)`]
       if (r.skipped) parts.push(`${r.skipped} omitida(s)`)
       if (r.subnet_created) parts.push(`subred ${r.subnet_created} creada`)
-      toast.success(`Guardado: ${parts.join(', ')}.`)
+      return `Guardado: ${parts.join(', ')}.`
+    },
+    onSuccess: (msg) => {
+      toast.success(msg)
       qc.invalidateQueries({ queryKey: ['ips'] })
       qc.invalidateQueries({ queryKey: ['subnets'] })
       onSaved()
@@ -106,7 +123,6 @@ export function SaveScanDialog({ items, method, single, onSaved, onClose }: Prop
     onError: (err) => toast.error(errorMessage(err)),
   })
 
-  const one = items[0]
   const nextOne = single && clientId !== NONE ? 'ASSIGNED' : one?.next
 
   return (
@@ -126,7 +142,9 @@ export function SaveScanDialog({ items, method, single, onSaved, onClose }: Prop
               {one.registered ? (
                 <>
                   {isStatus(one.previous) && <StatusBadge status={one.previous} />}→
-                  {isStatus(nextOne) && <StatusBadge status={nextOne} />}
+                  {release ? <StatusBadge status="ACTIVE" />
+                    : noResponse ? <NoResponseBadge />
+                    : isStatus(nextOne) && <StatusBadge status={nextOne} />}
                 </>
               ) : (
                 <span className="text-muted-foreground">No registrada</span>
@@ -159,6 +177,30 @@ export function SaveScanDialog({ items, method, single, onSaved, onClose }: Prop
                   <Input className="font-mono" value={cidrV} onChange={(e) => setCidr(e.target.value)} placeholder="192.168.1.0/24" />
                   <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre" />
                 </div>
+              )}
+            </div>
+          )}
+
+          {single && one?.clientName && (
+            <div className="grid gap-1.5">
+              <label className="font-medium">Cliente actual</label>
+              <div className="flex items-center gap-2">
+                <span className={`flex-1 rounded-lg border px-2.5 py-1.5 ${release ? 'text-muted-foreground line-through' : ''}`}>
+                  {one.clientName}
+                </span>
+                {noResponse && (
+                  <Button type="button" size="sm" variant={release ? 'outline' : 'destructive'}
+                    onClick={() => setRelease(!release)}>
+                    {release ? 'Deshacer' : 'Liberar IP'}
+                  </Button>
+                )}
+              </div>
+              {noResponse && (
+                <p className="text-xs text-muted-foreground">
+                  {release
+                    ? 'Al actualizar, la IP quedará como «Activa sin registrar» y sin cliente.'
+                    : 'No respondió. Pulsa «Liberar IP» para quitarle el cliente (opcional).'}
+                </p>
               )}
             </div>
           )}

@@ -14,6 +14,8 @@ import logging
 from typing import Optional, Union
 from app.api.schemas import ScanCommitRequest, ScanCommitResponse  # añadir al import existente
 from app.services.scan_commit import commit_scan
+from app.api.schemas import IPReleaseRequest          # añadir
+from app.Models.ip_state_history import CheckMethod   # añadir
 
 from fastapi import (
     APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status,
@@ -228,6 +230,28 @@ def ip_history(ip: str, limit: int = Query(default=50, ge=1, le=500),
     ip_obj = _get_ip_or_404(db, ip)
     return history_crud.list_history(db, ip_obj.id, limit=limit)
 
+@router.put("/{ip}/release", response_model=IPAddressRead,
+            summary="Libera una IP asignada: queda FREE o ACTIVE (sin cliente)")
+def release_ip(ip: str, payload: IPReleaseRequest, db: Session = Depends(get_db)):
+    obj = _get_ip_or_404(db, ip)
+    if obj.status != IPStatus.ASSIGNED or obj.client_id is None:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            f"La IP {obj.ip_address} no está asignada a un cliente.")
+    previous = obj.status.value
+    new = IPStatus(payload.status)
+    try:
+        obj.client_id = None
+        obj.status = new
+        history_crud.create_history(
+            db, obj.id, previous, new.value, CheckMethod.MANUAL,
+            payload.details or f"Liberada manualmente -> {new.value}", commit=False,
+        )
+        db.commit()
+        db.refresh(obj)
+    except Exception:
+        db.rollback()
+        raise
+    return obj
 
 @router.put("/{ip}/assign", response_model=IPAddressRead)
 def assign_ip(ip: str, payload: IPAssignRequest, db: Session = Depends(get_db)):

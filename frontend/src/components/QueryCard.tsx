@@ -7,16 +7,14 @@ import { toast } from 'sonner'
 import { api } from '@/api/endpoints'
 import { ApiError, errorMessage } from '@/lib/http'
 import { StatusBadge } from '@/components/StatusBadge'
+import { NoResponseBadge } from '@/components/NoResponseBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import type { IPQueryResponse, IPStatus } from '@/types/api'
-import {SaveScanDialog} from '@/components/SaveScanDialog'
-
-
-
+import { SaveScanDialog } from '@/components/SaveScanDialog'
 
 const PORT_NAMES: Record<string, string> = {
   '80': 'HTTP', '443': 'HTTPS', '8291': 'MikroTik', '22': 'SSH',
@@ -25,6 +23,10 @@ const PORT_NAMES: Record<string, string> = {
 
 const STATUSES: IPStatus[] = ['FREE', 'ASSIGNED', 'ACTIVE']
 const isStatus = (s: unknown): s is IPStatus => STATUSES.includes(s as IPStatus)
+
+// La IP "responde" si hay ping o algún puerto TCP abierto.
+const isUp = (r: IPQueryResponse) =>
+  r.ping || (r.tcp ? Object.values(r.tcp).some(Boolean) : false)
 
 const schema = z
   .object({
@@ -45,6 +47,10 @@ type FormValues = z.infer<typeof schema>
 function ResultView({ r }: { r: IPQueryResponse }) {
   const ev = r.evaluation as
     { previous_status?: string; new_status?: string; method?: string } | null
+
+  // Asignada + no respondió (ni ping ni puertos): etiqueta visual, no cambia la BD.
+  const noResponse =
+    !!ev && ev.previous_status === 'ASSIGNED' && ev.new_status === 'ASSIGNED' && !isUp(r)
 
   return (
     <Card size="sm">
@@ -72,14 +78,24 @@ function ResultView({ r }: { r: IPQueryResponse }) {
           </div>
         )}
 
+        {r.client_name && (
+          <p><span className="font-medium">Cliente:</span> {r.client_name}</p>
+        )}
+
         {ev ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium">Estado:</span>
-            {isStatus(ev.previous_status) && <StatusBadge status={ev.previous_status} />}
-            {ev.previous_status !== ev.new_status ? (
-              <>→ {isStatus(ev.new_status) && <StatusBadge status={ev.new_status} />}</>
+            {noResponse ? (
+              <NoResponseBadge />
             ) : (
-              <span className="text-muted-foreground">sin cambio</span>
+              <>
+                {isStatus(ev.previous_status) && <StatusBadge status={ev.previous_status} />}
+                {ev.previous_status !== ev.new_status ? (
+                  <>→ {isStatus(ev.new_status) && <StatusBadge status={ev.new_status} />}</>
+                ) : (
+                  <span className="text-muted-foreground">sin cambio</span>
+                )}
+              </>
             )}
             <span className="text-muted-foreground">(método {ev.method})</span>
           </div>
@@ -108,7 +124,7 @@ export function QueryCard() {
         ip_address: v.ip_address,
         use_tcp: v.use_tcp,
         pin: v.use_tcp ? v.pin.trim() : null, // el PIN solo viaja si se pidió TCP
-        dry_run: true
+        dry_run: true,
       }),
     onSuccess: (res) => {
       setResult(res); setSaved(false)
@@ -120,7 +136,7 @@ export function QueryCard() {
     },
     onSettled: () => setValue('pin', ''), // nunca dejar el PIN en el formulario
   })
-  
+
   return (
     <>
       <Card>
@@ -176,18 +192,18 @@ export function QueryCard() {
 
       {result && <ResultView r={result} />}
 
-
       {saveOpen && result && (() => {
         const ev = result.evaluation as { previous_status?: string; new_status?: string } | null
-        const up = result.ping || (result.tcp ? Object.values(result.tcp).some(Boolean) : false)
         return (
           <SaveScanDialog single method={result.tcp ? 'TCP' : 'PING'}
-            items={[{ ip_address: result.ip_address, is_up: up, registered: ev !== null,
-              previous: ev?.previous_status, next: ev?.new_status }]}
+            items={[{
+              ip_address: result.ip_address, is_up: isUp(result), registered: ev !== null,
+              previous: ev?.previous_status, next: ev?.new_status,
+              clientName: result.client_name,
+            }]}
             onSaved={() => setSaved(true)} onClose={() => setSaveOpen(false)} />
         )
       })()}
-
     </>
   )
 }

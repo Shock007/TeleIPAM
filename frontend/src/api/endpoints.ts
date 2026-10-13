@@ -37,6 +37,8 @@ export const api = {
     query: (b: T.IPQueryRequest) => http<T.IPQueryResponse>('/ips/query', { method: 'POST', body: b }),
     commit: (b: T.ScanCommitRequest) =>
       http<T.ScanCommitResponse>('/ips/scan/commit', { method: 'POST', body: b }),
+    release: (ip: string, b: T.IPReleaseRequest) =>
+      http<T.IPAddressRead>(`/ips/${ip}/release`, { method: 'PUT', body: b }),
   },
 
   scheduler: {

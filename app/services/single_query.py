@@ -50,8 +50,10 @@ def query_single_ip(db: Session | None, ip_address: str, use_tcp: bool = False,
         details = f"ping={ping_ok}; tcp={tcp_results}"
 
     # 4) Evaluación / historial si hay BD y la IP está registrada.
-    ip_obj = ip_crud.get_ip_by_address(db, ip_address) if db is not None else None
+        ip_obj = ip_crud.get_ip_by_address(db, ip_address) if db is not None else None
     if ip_obj:
+        result["client_id"] = ip_obj.client_id
+        result["client_name"] = ip_obj.client.full_name if ip_obj.client else None
         result["evaluation"] = record_result(
             db, ip_obj.id, is_up=is_up, method=method, details=details, persist=persist
         )
