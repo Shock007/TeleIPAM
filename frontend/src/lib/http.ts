@@ -1,3 +1,5 @@
+import { AUTH_EXPIRED, clearToken, getToken } from '@/lib/auth'
+
 const BASE = '/api/v1'
 
 type Params = Record<string, string | number | boolean | null | undefined>
@@ -48,12 +50,23 @@ interface Opts {
 }
 
 async function core(path: string, { method = 'GET', params, body, headers }: Opts = {}) {
+  const token = getToken()
   const res = await fetch(buildUrl(path, params), {
     method,
-    headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...headers },
+    headers: {
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...headers,
+    },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
-  if (!res.ok) throw await toApiError(res)
+  if (!res.ok) {
+    if (res.status === 401 && token) {
+      clearToken() // token vencido o inválido
+      window.dispatchEvent(new Event(AUTH_EXPIRED))
+    }
+    throw await toApiError(res)
+  }
   return res
 }
 
@@ -75,8 +88,9 @@ export async function httpWithTotal<T>(path: string, opts?: Opts) {
 export function errorMessage(err: unknown): string {
   if (!(err instanceof ApiError)) return 'No se pudo conectar con el servidor.'
   switch (err.status) {
+    case 401: return err.message
     case 403: return `PIN inválido. ${err.message}`
-    case 429: return 'Demasiados intentos fallidos de PIN. Intenta más tarde.'
+    case 429: return 'Demasiados intentos fallidos. Intenta más tarde.'
     case 409: return err.message // duplicado o subred con IPs
     case 400: return `Rango no válido o demasiado grande. ${err.message}`
     case 422: return `Datos no válidos: ${err.message}`

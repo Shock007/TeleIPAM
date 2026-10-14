@@ -6,7 +6,9 @@ import { ApiError } from '@/lib/http'
 import { router } from '@/router'
 import '@fontsource-variable/geist'
 import './index.css'
+import { AuthProvider } from '@/auth/AuthContext'
 
+    
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -21,7 +23,9 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </QueryClientProvider>
   </StrictMode>,
 )

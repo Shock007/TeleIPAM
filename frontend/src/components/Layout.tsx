@@ -1,10 +1,11 @@
 import { cn } from '@/lib/utils'
-import { Link, NavLink, Outlet } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
-import { LayoutDashboard, Network, Server, Users, Radar, Bell, SettingsIcon } from 'lucide-react'
 import { api } from '@/api/endpoints'
-
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { LayoutDashboard, Network, Server, Users, Radar, Bell, SettingsIcon, LogOut } from 'lucide-react'
+import { useAuth } from '@/auth/AuthContext'
+import { Button } from '@/components/ui/button'
 
 
 const NAV = [
@@ -42,6 +43,8 @@ function AlertsBadge() {
 }
 
 export function Layout() {
+    const { user, logout } = useAuth()
+    const navigate = useNavigate()
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       <aside className="hidden w-56 shrink-0 border-r bg-muted/30 p-4 md:block">
@@ -68,9 +71,17 @@ export function Layout() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center justify-between border-b px-6">
+                <header className="flex h-14 items-center justify-between border-b px-6">
           <span className="text-sm text-muted-foreground">Sistema IPAM para ISP</span>
-                    <AlertsBadge />
+          {user && (
+            <div className="flex items-center gap-3">
+              <AlertsBadge />
+              <span className="hidden text-sm text-muted-foreground sm:inline">{user.email}</span>
+              <Button variant="outline" size="sm" onClick={() => { logout(); navigate('/login') }}>
+                <LogOut /> Salir
+              </Button>
+            </div>
+          )}
         </header>
         <main className="flex-1 p-6">
           <Outlet />

@@ -208,3 +208,10 @@ export interface EnvUpdateResponse {
   warning: string | null
   current_config: EnvConfig
 }
+export interface AuthUser { id: number; email: string; is_admin: boolean; created_at: string }
+export interface AuthResponse {
+  access_token: string
+  token_type: string
+  user: AuthUser
+  wisphub_saved: boolean
+}

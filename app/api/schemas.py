@@ -3,6 +3,7 @@ import ipaddress
 from datetime import datetime
 from typing import Optional
 from typing import Literal  # añadir a los imports de typing
+import re
 
 
 from pydantic import (
@@ -320,3 +321,55 @@ class ScanCommitResponse(BaseModel):
     subnet_created: Optional[str] = None
     changes: list[ScanCommitChange]
     skipped_ips: list[str]
+
+# --- Auth -------------------------------------------------------------------
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_UNSAFE_KEY = re.compile(r"[\s#\"'\\]")
+
+
+class RegisterRequest(BaseModel):
+    email: str = Field(max_length=120)
+    password: str = Field(min_length=8, max_length=128)
+    wisphub_api_key: Optional[str] = Field(default=None, max_length=255)
+
+    @field_validator("email")
+    @classmethod
+    def _email(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not _EMAIL_RE.match(v):
+            raise ValueError("Correo no válido.")
+        return v
+
+    @field_validator("wisphub_api_key")
+    @classmethod
+    def _key(cls, v: Optional[str]) -> Optional[str]:
+        v = (v or "").strip()
+        if v and _UNSAFE_KEY.search(v):
+            raise ValueError("La API key no puede contener espacios, comillas, '#' ni '\\'.")
+        return v or None
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(max_length=120)
+    password: str = Field(max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def _email(cls, v: str) -> str:
+        return v.strip().lower()
+
+
+class UserRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: str
+    is_admin: bool
+    created_at: datetime
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserRead
+    wisphub_saved: bool = False

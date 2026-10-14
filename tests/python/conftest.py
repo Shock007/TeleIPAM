@@ -18,6 +18,9 @@ from app.database import Base
 from app.Models.client import Client
 from app.Models.ip_address import IPAddress, IPStatus
 from app.Models.subnet import Subnet
+from app.api.security import get_current_user
+from app.Models.user import User
+
 
 TEST_ENGINE = create_engine(
     "sqlite:///:memory:",
@@ -46,6 +49,9 @@ def client(db_session):
     from app.main import app
 
     pin_limiter.clear()
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+    id=1, email="test@example.com", password_hash="x", is_admin=True)
 
     def _override_get_db():
         yield db_session

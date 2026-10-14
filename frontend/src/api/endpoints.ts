@@ -3,6 +3,13 @@ import type * as T from '@/types/api'
 
 export const api = {
   health: () => http<{ status: string }>('/health'),
+  auth: {
+    login: (b: { email: string; password: string }) =>
+      http<T.AuthResponse>('/auth/login', { method: 'POST', body: b }),
+    register: (b: { email: string; password: string; wisphub_api_key?: string | null }) =>
+      http<T.AuthResponse>('/auth/register', { method: 'POST', body: b }),
+    me: () => http<T.AuthUser>('/auth/me'),
+  },
 
   subnets: {
     export: (id: number) => httpBlob(`/subnets/${id}/export`),
