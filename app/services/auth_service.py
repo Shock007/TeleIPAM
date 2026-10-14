@@ -6,7 +6,10 @@ import os
 import secrets
 from datetime import datetime, timedelta, timezone
 
-import jwt
+try:
+    import jwt
+except ModuleNotFoundError:  # pragma: no cover - depende de la instalación del paquete PyJWT.
+    jwt = None
 
 ALGORITHM = "HS256"
 TOKEN_HOURS = 12

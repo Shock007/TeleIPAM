@@ -4,7 +4,9 @@ import { z } from 'zod'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuth } from '@/auth/AuthContext'
-import { AuthShell, authButton, authInput } from '@/components/AuthShell'
+import { AuthField, AuthShell } from '@/components/AuthShell'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { errorMessage } from '@/lib/http'
 
 const schema = z.object({
@@ -33,27 +35,26 @@ export function LoginPage() {
 
   return (
     <AuthShell>
-      <p className="text-center text-sm uppercase tracking-wide text-gray-500">Modulo / Autenticacion</p>
-      <h1 className="mb-6 mt-4 text-center text-2xl text-[#00b85c]">Bienvenido de vuelta</h1>
+      <h1 className="text-xl font-semibold">Bienvenido de vuelta</h1>
+      <p className="mb-5 mt-1 text-sm text-muted-foreground">Inicia sesión para continuar.</p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4" autoComplete="off">
-        <div className="grid gap-1">
-          <label className="text-sm uppercase">Correo electronico</label>
-          <input type="email" className={authInput} {...register('email')} />
-          {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
-        </div>
-        <div className="grid gap-1">
-          <label className="text-sm uppercase">Contraseña</label>
-          <input type="password" className={authInput} {...register('password')} />
-          {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
-        </div>
-        <button type="submit" className={`${authButton} mt-2`} disabled={isSubmitting}>
-          {isSubmitting ? 'Ingresando...' : 'Iniciar Sesión'}
-        </button>
+        <AuthField label="Correo electrónico" error={errors.email?.message}>
+          <Input type="email" aria-invalid={!!errors.email} {...register('email')} />
+        </AuthField>
+        <AuthField label="Contraseña" error={errors.password?.message}>
+          <Input type="password" aria-invalid={!!errors.password} {...register('password')} />
+        </AuthField>
+        <Button type="submit" size="lg" className="mt-1 w-full" disabled={isSubmitting}>
+          {isSubmitting ? 'Ingresando...' : 'Iniciar sesión'}
+        </Button>
       </form>
 
-      <p className="mt-4 text-center text-sm">
-        ¿No tienes cuenta? <Link to="/register" className="text-red-500">Registrate aqui</Link>
+      <p className="mt-4 text-center text-sm text-muted-foreground">
+        ¿No tienes cuenta?{' '}
+        <Link to="/register" className="font-medium text-destructive underline-offset-4 hover:underline">
+          Regístrate aquí
+        </Link>
       </p>
     </AuthShell>
   )

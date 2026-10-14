@@ -1,27 +1,36 @@
 import type { ReactNode } from 'react'
 import { Toaster } from 'sonner'
+import { Card } from '@/components/ui/card'
 
-export const authInput =
-  'h-10 w-full rounded-xl border-2 border-black bg-[#f1f1f1] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#6db857]'
-export const authButton =
-  'h-11 w-full rounded-xl border-2 border-black bg-[#6db857] text-lg text-white transition hover:brightness-95 disabled:opacity-60'
-
-/** Fondo con dos franjas diagonales + tarjeta con cabecera verde. */
+/** Fondo con franjas diagonales + tarjeta con el estilo del resto de la app. */
 export function AuthShell({ headerText, children }: { headerText?: string; children: ReactNode }) {
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-white p-4">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-4">
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-0 w-[300vw] -translate-x-1/2 -translate-y-1/2 -rotate-[41deg]">
-        <div className="absolute left-0 w-full bg-[#7b6566]" style={{ top: '-20vw', height: '10vw' }} />
-        <div className="absolute left-0 w-full bg-[#437c3a]" style={{ top: '-2.3vw', height: '10vw' }} />
+        <div className="absolute left-0 w-full bg-[#7b6566]/70" style={{ top: '-20vw', height: '10vw' }} />
+        <div className="absolute left-0 w-full bg-status-free/80" style={{ top: '-2.3vw', height: '10vw' }} />
       </div>
 
-      <div className="relative w-full max-w-sm overflow-hidden rounded-[28px] border-2 border-black bg-white">
-        <div className="flex h-10 items-center justify-center bg-[#6db857] text-xs tracking-wide text-black/60">
-          {headerText}
+      <Card className="relative w-full max-w-sm gap-0 py-0">
+        <div className="flex h-9 items-center justify-center bg-status-free/90 text-xs tracking-wide text-status-free-foreground">
+          {headerText ?? 'MODULO / AUTENTICACION'}
         </div>
-        <div className="px-8 pb-7 pt-5">{children}</div>
-      </div>
+        <div className="px-6 pb-6 pt-5">{children}</div>
+      </Card>
       <Toaster richColors position="top-right" />
+    </div>
+  )
+}
+
+/** Etiqueta con el mismo estilo que los formularios del resto de la app. */
+export function AuthField({ label, error, children }: {
+  label: string; error?: string; children: ReactNode
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <label className="text-sm font-medium">{label}</label>
+      {children}
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   )
 }

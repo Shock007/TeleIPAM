@@ -4,7 +4,9 @@ import { z } from 'zod'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuth } from '@/auth/AuthContext'
-import { AuthShell, authButton, authInput } from '@/components/AuthShell'
+import { AuthField, AuthShell } from '@/components/AuthShell'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { errorMessage } from '@/lib/http'
 
 const schema = z
@@ -16,16 +18,6 @@ const schema = z
   })
   .refine((v) => v.password === v.confirm, { path: ['confirm'], message: 'Las contraseñas no coinciden.' })
 type FormValues = z.infer<typeof schema>
-
-function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
-  return (
-    <div className="grid gap-1">
-      <label className="text-sm">{label}</label>
-      {children}
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
-  )
-}
 
 export function RegisterPage() {
   const { user, register: signUp } = useAuth()
@@ -51,30 +43,35 @@ export function RegisterPage() {
   }
 
   return (
-    <AuthShell headerText="MODULO / AUTENTICACION">
-      <h1 className="mb-3 text-center text-2xl uppercase text-[#00b85c]">Crear cuenta</h1>
+    <AuthShell>
+      <h1 className="mb-4 text-xl font-semibold">Crear cuenta</h1>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="grid gap-3" autoComplete="off">
-        <Field label="Correo Electronico" error={errors.email?.message}>
-          <input type="email" className={authInput} {...register('email')} />
-        </Field>
-        <Field label="Contraseña" error={errors.password?.message}>
-          <input type="password" autoComplete="new-password" className={authInput} {...register('password')} />
-        </Field>
-        <Field label="Confirmar Contraseña" error={errors.confirm?.message}>
-          <input type="password" autoComplete="new-password" className={authInput} {...register('confirm')} />
-        </Field>
-        <Field label="¿Posee la API de WispHub? Ingresela si quiere ahorrarse unos cuantos minutos."
-          error={errors.wisphub_api_key?.message}>
-          <input type="password" autoComplete="off" className={authInput} {...register('wisphub_api_key')} />
-        </Field>
-        <button type="submit" className={`${authButton} mt-2`} disabled={isSubmitting}>
-          {isSubmitting ? 'Creando...' : 'Crear Cuenta'}
-        </button>
+      <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4" autoComplete="off">
+        <AuthField label="Correo electrónico" error={errors.email?.message}>
+          <Input type="email" aria-invalid={!!errors.email} {...register('email')} />
+        </AuthField>
+        <AuthField label="Contraseña" error={errors.password?.message}>
+          <Input type="password" autoComplete="new-password" aria-invalid={!!errors.password} {...register('password')} />
+        </AuthField>
+        <AuthField label="Confirmar contraseña" error={errors.confirm?.message}>
+          <Input type="password" autoComplete="new-password" aria-invalid={!!errors.confirm} {...register('confirm')} />
+        </AuthField>
+        <AuthField label="API de WispHub (opcional)" error={errors.wisphub_api_key?.message}>
+          <Input type="password" autoComplete="off" aria-invalid={!!errors.wisphub_api_key} {...register('wisphub_api_key')} />
+          <p className="text-xs text-muted-foreground">
+            ¿La tienes? Ingrésala y te ahorras unos minutos de configuración.
+          </p>
+        </AuthField>
+        <Button type="submit" size="lg" className="mt-1 w-full" disabled={isSubmitting}>
+          {isSubmitting ? 'Creando...' : 'Crear cuenta'}
+        </Button>
       </form>
 
-      <p className="mt-4 text-center text-sm">
-        ¿Tienes cuenta? Inicia sesión <Link to="/login" className="text-red-500">aqui</Link>
+      <p className="mt-4 text-center text-sm text-muted-foreground">
+        ¿Tienes cuenta? Inicia sesión{' '}
+        <Link to="/login" className="font-medium text-destructive underline-offset-4 hover:underline">
+          aquí
+        </Link>
       </p>
     </AuthShell>
   )
