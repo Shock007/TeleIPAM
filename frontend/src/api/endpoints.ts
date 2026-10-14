@@ -13,6 +13,7 @@ export const api = {
 
   subnets: {
     export: (id: number) => httpBlob(`/subnets/${id}/export`),
+    exportAll: () => httpBlob('/subnets/export/all'),
     list: (p?: { skip?: number; limit?: number }) => http<T.SubnetRead[]>('/subnets', { params: p }),
     get: (id: number) => http<T.SubnetRead>(`/subnets/${id}`),
     create: (b: T.SubnetCreate) => http<T.SubnetRead>('/subnets', { method: 'POST', body: b }),

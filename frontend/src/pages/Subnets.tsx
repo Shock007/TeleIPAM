@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { SubnetRead } from '@/types/api'
-import { Download, Plus } from 'lucide-react'
+import { Download, FileSpreadsheet, Plus } from 'lucide-react'
 
 export function SubnetsPage() {
   const qc = useQueryClient()
@@ -49,12 +49,27 @@ export function SubnetsPage() {
     onError: (err) => toast.error(errorMessage(err)),
   })
 
+  const exportAll = useMutation({
+  mutationFn: () => api.subnets.exportAll(),
+  onSuccess: (blob) => {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `reporte_general_subredes_${new Date().toISOString().slice(0, 10)}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+  },
+  onError: (err) => toast.error(errorMessage(err)),
+})
+
   const list = [...(subnets.data ?? [])].sort((a, b) => a.cidr.localeCompare(b.cidr))
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Subredes</h1>
+      <div className="flex items-center gap-2">
+        <Button className="bg-status-free text-status-free-foreground hover:bg-status-free/80" disabled={exportAll.isPending || list.length === 0} onClick={() => exportAll.mutate()}>
+        <FileSpreadsheet /> {exportAll.isPending ? 'Generando...' : 'Reporte General'}
+        </Button>
         <Button onClick={() => setForm({})}><Plus /> Nueva subred</Button>
       </div>
 

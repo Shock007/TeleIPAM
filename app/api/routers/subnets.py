@@ -7,6 +7,10 @@ from app.api.deps import get_db
 from app.api.schemas import SubnetCreate, SubnetRead, SubnetUpdate
 from app.crud import ip_address as ip_crud
 from app.crud import subnet as subnet_crud
+from app.services.subnet_report import (
+    XLSX_MIME, SubnetReportError, build_general_report, build_subnet_report,
+)
+from datetime import date
 
 router = APIRouter(prefix="/api/v1/subnets", tags=["subnets"])
 
@@ -23,6 +27,22 @@ def list_subnets(skip: int = Query(default=0, ge=0),
                  db: Session = Depends(get_db)):
     return subnet_crud.list_subnets(db, skip=skip, limit=limit)
 
+@router.get("/export/all")
+def export_all_subnets(db: Session = Depends(get_db)):
+    """Reporte general: todas las subredes en un solo XLSX."""
+    subnets = sorted(subnet_crud.list_subnets(db, limit=100000), key=lambda s: s.id)
+    data = [(s, ip_crud.list_all_by_subnet(db, s.id)) for s in subnets]
+    try:
+        content = build_general_report(data)
+    except SubnetReportError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+    filename = f"reporte_general_subredes_{date.today():%Y%m%d}.xlsx"
+    return Response(
+        content=content,
+        media_type=XLSX_MIME,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 @router.get("/{subnet_id}", response_model=SubnetRead)
 def get_subnet(subnet_id: int, db: Session = Depends(get_db)):
