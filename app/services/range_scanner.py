@@ -79,7 +79,7 @@ async def _ping_with_semaphore(ip: str, semaphore: asyncio.Semaphore, timeout: i
     async with semaphore:
         # ping_host usa subprocess (bloqueante); to_thread evita congelar
         # el event loop mientras se ejecuta.
-        is_up = await asyncio.to_thread(ping_host, ip, timeout)
+        is_up = await asyncio.to_thread(ping_host, ip, timeout, 2)  # 2 paquetes
         return {"ip_address": ip, "is_up": is_up}
 
 
