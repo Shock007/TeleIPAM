@@ -204,6 +204,9 @@ def query_ip(payload: IPQueryRequest, request: Request,
              db: Session | None = Depends(get_optional_db)):
     """Función síncrona a propósito: se ejecuta en threadpool, donde
     scan_ports puede usar asyncio.run sin chocar con el event loop."""
+    pin = payload.pin.get_secret_value() if payload.pin else None
+    result = query_single_ip(db, str(payload.ip_address), use_tcp=payload.use_tcp,
+                         provider_pin=pin, persist=not payload.dry_run)
     key = request.client.host if request.client else "unknown"
     if payload.use_tcp:
         pin_limiter.check(key)

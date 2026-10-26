@@ -16,6 +16,8 @@ def ping_host(ip: str, timeout: int = 2) -> bool:
 
     if system == "windows":
         cmd = ["ping", "-n", "1", "-w", str(timeout * 1000), ip]
+    elif system == "darwin":   # en macOS -W son milisegundos
+        cmd = ["ping", "-c", "1", "-W", str(timeout * 1000), ip]
     else:
         cmd = ["ping", "-c", "1", "-W", str(timeout), ip]
 

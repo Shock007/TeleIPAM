@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 from typing import Literal  # añadir a los imports de typing
 import re
-
+from pydantic import SecretStr
 
 from pydantic import (
     BaseModel, ConfigDict, Field, IPvAnyAddress, field_validator, model_validator,
@@ -12,6 +12,12 @@ from pydantic import (
 
 from app.Models.ip_address import IPStatus
 from app.Models.ip_state_history import CheckMethod
+
+class IPQueryRequest(BaseModel):
+    ip_address: IPvAnyAddress
+    use_tcp: bool = False
+    pin: Optional[SecretStr] = Field(default=None, repr=False)
+    dry_run: bool = False
 
 class IPReleaseRequest(BaseModel):
     """Body de PUT /api/v1/ips/{ip}/release."""
@@ -21,7 +27,7 @@ class IPReleaseRequest(BaseModel):
 class IPQueryResponse(BaseModel):
     ip_address: str
     ping: bool
-    tcp: Optional[dict[int, bool]] = None
+    tcp: Optional[dict[int, Literal["open", "refused", "timeout"]]] = None
     evaluation: Optional[dict] = None
     note: Optional[str] = None
     client_id: Optional[int] = None        # NUEVO
@@ -267,21 +273,6 @@ class IPStats(BaseModel):
     assigned: int
     active: int
     by_subnet: list[SubnetStats]
-
-
-class IPQueryRequest(BaseModel):
-    ip_address: IPvAnyAddress
-    use_tcp: bool = False
-    pin: Optional[str] = Field(default=None, repr=False)
-    dry_run: bool = False
-
-
-class IPQueryResponse(BaseModel):
-    ip_address: str
-    ping: bool
-    tcp: Optional[dict[int, bool]] = None
-    evaluation: Optional[dict] = None
-    note: Optional[str] = None
 
 
 class SchedulerStatus(BaseModel):

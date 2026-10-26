@@ -22,6 +22,9 @@ from app.api.security import get_current_user
 from app.config import get_scheduler_enabled
 from app.services.scheduler import shutdown_scheduler, start_scheduler
 from app.spa import SPAStaticFiles
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger("ipam.main")
 
@@ -44,6 +47,13 @@ app = FastAPI(
     version="0.6.0",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_handler(request, exc: RequestValidationError):
+    errors = [{k: v for k, v in e.items() if k not in ("input", "ctx")}
+              for e in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
 
 # En producción restringir allow_origins a la URL real del frontend.
 app.add_middleware(

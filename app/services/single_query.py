@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.Models.ip_state_history import CheckMethod
 from app.crud import ip_address as ip_crud
 from app.services.ping_service import ping_host
-from app.services.tcp_scanner import scan_ports
+from app.services.tcp_scanner import scan_ports, host_responds, PortState
 from app.services.authorization import authorize_tcp_scan, UnauthorizedTCPScanError
 
 __all__ = ["query_single_ip", "UnauthorizedTCPScanError"]
@@ -46,8 +46,9 @@ def query_single_ip(db: Session | None, ip_address: str, use_tcp: bool = False,
         tcp_results = scan_ports(ip_address)
         result["tcp"] = tcp_results
         method = CheckMethod.TCP
-        is_up = ping_ok or any(tcp_results.values())
-        details = f"ping={ping_ok}; tcp={tcp_results}"
+        is_up = ping_ok or host_responds(tcp_results)
+        tcp_txt = {p: PortState(s).value for p, s in tcp_results.items()}
+        details = f"ping={ping_ok}; tcp={tcp_txt}"   # sin "PortState.OPEN" en el historial
 
     # 4) Evaluación / historial si hay BD y la IP está registrada.
        # 4) Evaluación / historial si hay BD y la IP está registrada.

@@ -23,10 +23,13 @@ const PORT_NAMES: Record<string, string> = {
 
 const STATUSES: IPStatus[] = ['FREE', 'ASSIGNED', 'ACTIVE']
 const isStatus = (s: unknown): s is IPStatus => STATUSES.includes(s as IPStatus)
+const PORT_LABELS: Record<string, string> = {
+  open: 'abierto', refused: 'rechazado (host vivo)', timeout: 'sin respuesta',
+}
 
 // La IP "responde" si hay ping o algún puerto TCP abierto.
 const isUp = (r: IPQueryResponse) =>
-  r.ping || (r.tcp ? Object.values(r.tcp).some(Boolean) : false)
+  r.ping || (r.tcp ? Object.values(r.tcp).some((s) => s !== 'timeout') : false)
 
 const schema = z
   .object({
@@ -68,11 +71,12 @@ function ResultView({ r }: { r: IPQueryResponse }) {
           <div className="space-y-2">
             <p className="font-medium">Puertos TCP</p>
             <div className="flex flex-wrap gap-2">
-              {Object.entries(r.tcp).map(([port, open]) => (
-                <Badge key={port} className={cn('border-transparent',
-                  open ? 'bg-status-free text-status-free-foreground' : 'bg-muted text-muted-foreground')}>
-                  {port} {PORT_NAMES[port] ?? ''} · {open ? 'abierto' : 'cerrado'}
-                </Badge>
+              {Object.entries(r.tcp).map(([port, state]) => (
+                <Badge
+                key={port}
+                className={cn('border-transparent',state === 'open'? 'bg-status-free text-status-free-foreground': state === 'refused'? 'bg-status-active text-status-active-foreground': 'bg-muted text-muted-foreground',)}>
+                    {port} {PORT_NAMES[port] ?? ''} · {PORT_LABELS[state]}
+                    </Badge>
               ))}
             </div>
           </div>

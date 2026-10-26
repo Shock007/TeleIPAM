@@ -1,6 +1,6 @@
 export type IPStatus = 'FREE' | 'ASSIGNED' | 'ACTIVE'
 export type CheckMethod = 'PING' | 'TCP' | 'WISPHUB' | 'MANUAL'
-
+export type PortState = 'open' | 'refused' | 'timeout'
 // IPs
 export interface IPAddressRead {
   id: number
@@ -93,7 +93,7 @@ export interface IPQueryRequest {
 export interface IPQueryResponse {
   ip_address: string
   ping: boolean
-  tcp: Record<string, boolean> | null // claves de puerto llegan como string en JSON
+  tcp: Record<string, PortState> | null   // antes: Record<string, boolean>
   evaluation: Record<string, unknown> | null
   note: string | null
   client_id: number | null
