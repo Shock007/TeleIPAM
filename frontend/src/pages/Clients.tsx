@@ -12,7 +12,9 @@ import { Card } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import type { ClientRead } from '@/types/api'
-import { IPCreateDialog } from '@/components/IPCreateDialog'
+import { ClientAssignIPDialog } from '@/components/ClientAssignIPDialog'
+
+
 
 export function ClientsPage() {
   const qc = useQueryClient()
@@ -20,6 +22,14 @@ export function ClientsPage() {
   const [deleting, setDeleting] = useState<ClientRead | null>(null)
   const [onlyActive, setOnlyActive] = useState(false)
   const [ipFor, setIpFor] = useState<ClientRead | null>(null)
+
+    // IPs asignadas: una IP por cliente. Clave bajo ['ips'] para refrescarse al asignar/liberar.
+  const assigned = useQuery({
+    queryKey: ['ips', 'assigned'],
+    queryFn: () => api.ips.list({ status: 'ASSIGNED', limit: 500 }),
+  })
+  const ipByClient = new Map<number, string>()
+  assigned.data?.data.forEach((i) => { if (i.client_id) ipByClient.set(i.client_id, i.ip_address) })
 
   const clients = useQuery({
     queryKey: ['clients', 'all'], // misma clave que IPs y AssignDialog
@@ -102,7 +112,14 @@ export function ClientsPage() {
                   </Badge>
                 </TableCell>
                 <TableCell className="space-x-2 text-right">
-                  <Button variant="outline" size="xs" disabled={!c.is_active} onClick={() => setIpFor(c)}>Asignar IP</Button>
+                  <Button variant="outline" size="xs"
+                    disabled={!c.is_active || assigned.isPending || ipByClient.has(c.id)}
+                    title={ipByClient.has(c.id)
+                      ? `Ya tiene la IP ${ipByClient.get(c.id)}. Libérala en Direcciones IP para asignar otra.`
+                      : undefined}
+                    onClick={() => setIpFor(c)}>
+                    Asignar IP
++                  </Button>
                   <Button variant="outline" size="xs" onClick={() => setForm({ client: c })}>Editar</Button>
                   <Button variant="outline" size="xs"
                     disabled={toggle.isPending && toggle.variables?.id === c.id}
@@ -136,7 +153,7 @@ export function ClientsPage() {
           }
         />
       )}
-      {ipFor && <IPCreateDialog defaultClientId={ipFor.id} onClose={() => setIpFor(null)} />}
+      {ipFor && <ClientAssignIPDialog key={ipFor.id} client={ipFor} onClose={() => setIpFor(null)} />}
     </div>
   )
 }
