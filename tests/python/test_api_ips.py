@@ -49,11 +49,16 @@ def test_list_ips_paginacion(client, seed):
 
 # --- PUT /api/v1/ips/{ip}/assign -----------------------------------------
 
-def test_assign_ip_existente_ok(client, seed):
+def test_assign_ip_existente_ok(client, seed, db_session):
+    from app.Models.client import Client
+    nuevo = Client(full_name="Cliente Sin IP")
+    db_session.add(nuevo)
+    db_session.commit()
+    db_session.refresh(nuevo)
     r = client.put(
         f"/api/v1/ips/{seed['ip_free'].ip_address}/assign",
         json={
-            "client_id": seed["cliente"].id,
+            "client_id": nuevo.id,
             "description": "Router principal",
             "status": "ASSIGNED",
         },
@@ -61,8 +66,18 @@ def test_assign_ip_existente_ok(client, seed):
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "ASSIGNED"
-    assert body["client_id"] == seed["cliente"].id
+    assert body["client_id"] == nuevo.id
     assert body["description"] == "Router principal"
+
+
+def test_assign_ip_cliente_con_ip_409(client, seed):
+    r = client.put(
+        f"/api/v1/ips/{seed['ip_free'].ip_address}/assign",
+        json={"client_id": seed["cliente"].id, "status": "ASSIGNED"},
+    )
+    
+    assert r.status_code == 409
+    assert seed["ip_assigned"].ip_address in r.json()["detail"]
 
 
 def test_assign_ip_desasignar_ok(client, seed):

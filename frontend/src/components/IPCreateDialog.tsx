@@ -57,11 +57,10 @@ const makeSchema = (subnets: SubnetRead[]) =>
 interface FormValues { subnet_id: string; ip_address: string; client_id: string; description: string }
 
 interface Props {
-  defaultClientId?: number // al abrir desde un cliente
   onClose: () => void
 }
 
-export function IPCreateDialog({ defaultClientId, onClose }: Props) {
+export function IPCreateDialog({ onClose }: Props) {
   const qc = useQueryClient()
 
   // Mismas claves que el resto de la app: sin peticiones extra si ya están en caché.
@@ -69,7 +68,7 @@ export function IPCreateDialog({ defaultClientId, onClose }: Props) {
   const clients = useQuery({ queryKey: ['clients', 'all'], queryFn: () => api.clients.list({ limit: 500 }) })
 
   const subnetList = subnets.data ?? []
-  const clientOptions = (clients.data ?? []).filter((c) => c.is_active || c.id === defaultClientId)
+  const clientOptions = (clients.data ?? []).filter((c) => c.is_active)
 
   const subnetItems: Record<string, string> = {}
   subnetList.forEach((s) => { subnetItems[String(s.id)] = `${s.cidr} — ${s.name}` })
@@ -81,7 +80,7 @@ export function IPCreateDialog({ defaultClientId, onClose }: Props) {
     defaultValues: {
       subnet_id: '',
       ip_address: '',
-      client_id: defaultClientId ? String(defaultClientId) : NONE,
+      client_id: NONE,
       description: '',
     },
   })

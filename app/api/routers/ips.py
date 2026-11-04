@@ -20,10 +20,10 @@ from app.Models.ip_state_history import CheckMethod   # añadir
 from fastapi import (
     APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status,
 )
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
-
 from app.api.deps import get_db, get_optional_db, get_session_factory
 from app.api.rate_limit import pin_limiter
 from app.api.schemas import (
@@ -35,7 +35,7 @@ from app.crud import client as client_crud
 from app.crud import ip_address as ip_crud
 from app.crud import ip_state_history as history_crud
 from app.crud import subnet as subnet_crud
-from app.Models.ip_address import IPStatus
+from app.Models.ip_address import IPAddress, IPStatus
 from app.services.authorization import MissingProviderPinError, UnauthorizedTCPScanError
 from app.services.range_scanner import build_ip_list, run_range_scan, run_range_scan_background
 from app.services.single_query import query_single_ip
@@ -264,6 +264,20 @@ def assign_ip(ip: str, payload: IPAssignRequest, db: Session = Depends(get_db)):
     if payload.client_id is not None and not client_crud.get_client(db, payload.client_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND,
                             f"El cliente con id={payload.client_id} no existe.")
+
+    if payload.client_id is not None:
+        other = db.scalar(
+            select(IPAddress.ip_address).where(
+                IPAddress.client_id == payload.client_id,
+                IPAddress.status == IPStatus.ASSIGNED,
+                IPAddress.id != ip_obj.id,
+            ).limit(1)
+        )
+          
+    if other:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"El cliente ya tiene asignada la IP {other}. Libérala antes de asignar otra.")
 
     return ip_crud.assign_ip(db, ip_obj.id, client_id=payload.client_id,
                              description=payload.description, status=payload.status)
