@@ -1,180 +1,288 @@
-# TeleIPAM — Administración y auditoría de direcciones IP para ISP
+# TeleIPAM - Sistema de Gestión, Monitoreo y Auditoría de Direcciones IP
 
-Sistema de gestión de direcciones IP para un proveedor de internet (ISP): inventario de subredes, clientes e IPs, verificación de red (ping y puertos TCP), integración con **WispHub** y auditoría programada. Backend en **FastAPI**, frontend en **React**.
+**TeleIPAM** es una solución web integral diseñada para Proveedores de Servicios de Internet (ISP) y administradores de red. Su objetivo principal es automatizar la auditoría de redes, la gestión del inventario de direcciones IP y la detección proactiva de inconsistencias entre los registros del sistema y el tráfico real en la red (IPs no autorizadas o intrusas), integrando verificaciones ICMP/TCP asíncronas y sincronización con plataformas de gestión como **WispHub**.
 
-## Contenido
+---
 
-- [Estados de una IP](#estados-de-una-ip)
-- [Arquitectura](#arquitectura)
-- [Modelo de datos](#modelo-de-datos)
-- [Estructura del proyecto](#estructura-del-proyecto)
-- [Stack](#stack)
-- [Puesta en marcha](#puesta-en-marcha)
-- [Variables de entorno](#variables-de-entorno)
-- [Endpoints principales](#endpoints-principales)
-- [Pruebas](#pruebas)
-- [Pendientes y deuda técnica](#pendientes-y-deuda-técnica)
+## 🟢 Estados de las Direcciones IP
 
-## Estados de una IP
+El sistema clasifica las direcciones IP según la correlación entre la asignación administrativa y la actividad detectada en la red:
 
-| Estado | Significado |
-| :--- | :--- |
-| `FREE` | Sin cliente asignado y sin respuesta en la red. |
-| `ASSIGNED` | Asignada administrativamente a un cliente. |
-| `ACTIVE` | Responde en la red (o está activa en WispHub) pero **sin registro administrativo**: posible IP intrusa. |
+* **`FREE` (Libre - Verde):** Dirección IP que no tiene cliente asignado formalmente en el sistema y tampoco genera respuesta a pruebas ICMP/TCP ni actividad en la red. Está lista para ser asignada.
+* **`ASSIGNED` (Asignada - Rojo):** Dirección IP asignada oficialmente a un cliente o servicio en la base de datos.
+* **`ACTIVE` (Activa / Conflicto - Amarillo):** Dirección IP que **no está asignada a ningún cliente** en el registro del sistema, pero responde a pings, tiene puertos TCP abiertos o reporta tráfico activo. Representa una alerta de seguridad, IP intrusa o inconsistencia de inventario.
 
-## Arquitectura
+---
+
+## 📐 Arquitectura del Sistema
+
+TeleIPAM emplea una arquitectura desacoplada basada en microservicios/capas para optimizar el rendimiento y la velocidad de escaneo masivo de subredes:
 
 ```
- React SPA (Vite)  ──REST/JSON──▶  FastAPI (app/)
-                                     ├─ api/        routers + schemas + seguridad
-                                     ├─ crud/       acceso a datos
-                                     ├─ services/   ping, TCP, WispHub, evaluación, scheduler
-                                     └─ Models/     SQLAlchemy 2.0
-                                           │
-                                  PostgreSQL / MySQL (Alembic)
+                      ┌────────────────────────────────────────┐
+                      │            Interfaz Web SPA            │
+                      │     (React + TypeScript + Vite)        │
+                      └───────────────────┬────────────────────┘
+                                          │
+                                          │ REST API / JSON
+                                          ▼
+                      ┌────────────────────────────────────────┐
+                      │            FastAPI Backend             │
+                      │     (Core API, Logic & Schemas)        │
+                      └───────┬────────────────┬───────────────┘
+                              │                │
+            ┌─────────────────┴──┐          ┌──┴────────────────────────┐
+            ▼                    ▼          ▼                           ▼
+    ┌──────────────┐      ┌─────────────┐ ┌───────────────────┐  ┌────────────┐
+    │ Ping Runner  │      │ Socket TCP  │ │ Adapter WispHub   │  │ APScheduler│
+    │ (ICMP Async) │      │  (Asyncio)  │ │ (API Externa ISP) │  │ (Auditoría)│
+    └──────────────┘      └─────────────┘ └───────────────────┘  └────────────┘
+            │                    │                  │                   │
+            └────────────────────┼──────────────────┴───────────────────┘
+                                 ▼
+                  ┌──────────────────────────────┐
+                  │ Base de Datos Relacional     │
+                  │ (PostgreSQL / MySQL / SQLite)│
+                  └──────────────────────────────┘
 ```
 
-La SPA compilada se sirve desde el propio backend en `/app/`; el dashboard HTML estático de respaldo, en `/dashboard/`.
+---
 
-## Modelo de datos
+## 💾 Modelo de Datos
 
-Definido en `app/Models/` (SQLAlchemy 2.0) y versionado con Alembic (`alembic/versions/0001_initial_schema.py`).
+El esquema relacional refleja la estructura del inventario de red, la relación con los clientes y el registro histórico de auditorías:
 
 ```
-Subnet 1──N IPAddress N──1 Client (opcional)
-                 │ 1
-                 N
-          IPStateHistory
+ ┌──────────────────────┐         ┌──────────────────────┐
+ │       Subnet         │         │        Client        │
+ ├──────────────────────┤         ├──────────────────────┤
+ │ id (PK)              │         │ id (PK)              │
+ │ cidr                 │         │ name                 │
+ │ vlan_id              │         │ document_id          │
+ │ name                 │         │ wisphub_id           │
+ │ description          │         │ phone                │
+ └──────────┬───────────┘         │ email                │
+            │ 1                   └──────────┬───────────┘
+            │                                │ 1
+            │ N                              │ N
+ ┌──────────┴────────────────────────────────┴───────────┐
+ │                      IPAddress                        │
+ ├───────────────────────────────────────────────────────┤
+ │ ip (PK)                                               │
+ │ subnet_id (FK -> Subnet.id)                           │
+ │ client_id (FK -> Client.id, Nullable)                 │
+ │ status [FREE | ASSIGNED | ACTIVE]                     │
+ │ description                                           │
+ └──────────┬────────────────────────────┘
+                            │ 1
+                            │ N
+ ┌──────────────────────────┴────────────────────────────┐
+ │                   IPStateHistory                      │
+ ├───────────────────────────────────────────────────────┤
+ │ id (PK)                                               │
+ │ ip (FK -> IPAddress.ip)                               │
+ │ checked_at (Timestamp)                                │
+ │ ping_responsive (Boolean)                             │
+ │ open_ports (Array/JSON)                               │
+ │ wisphub_active (Boolean)                              │
+ │ calculated_status                                     │
+ └───────────────────────────────────────────────────────┘
 ```
 
-**`Subnet`** (`subnets`): `id`, `cidr` (único), `name`, `description`, `vlan_id`, `created_at`, `updated_at`.
+---
 
-**`Client`** (`clients`): `id`, `full_name`, `document_id` (único), `email`, `phone`, `address`, `wisphub_client_id`, `is_active`, `created_at`, `updated_at`.
+## 📂 Estructura del Proyecto
 
-**`IPAddress`** (`ip_addresses`): `id`, `ip_address` (único), `subnet_id` → `subnets.id`, `client_id` → `clients.id` (nulo), `status` (`FREE | ASSIGNED | ACTIVE`), `description`, `created_at`, `updated_at`.
-
-**`IPStateHistory`** (`ip_state_history`): bitácora de cambios de estado.
-
-| Campo | Tipo | Notas |
-| :--- | :--- | :--- |
-| `id` | int (PK) | |
-| `ip_id` | int (FK → `ip_addresses.id`) | `ON DELETE CASCADE` |
-| `previous_status` | texto, nulo | Estado anterior |
-| `new_status` | texto | Estado detectado |
-| `method` | enum `CheckMethod` | `PING`, `TCP`, `WISPHUB`, `MANUAL` |
-| `details` | texto, nulo | Detalle de la verificación |
-| `checked_at` | fecha/hora con zona | Momento de la verificación |
-
-## Estructura del proyecto
-
-```text
-.
-├── app/                      # Backend FastAPI (Python)
-│   ├── main.py               # Entrypoint, routers, CORS, montaje de SPA y dashboard
-│   ├── config.py             # DATABASE_URL, SQL_ECHO, PROVIDER_PIN, WISPHUB_* y funciones get_*
-│   ├── database.py           # Engine y sesión SQLAlchemy
-│   ├── spa.py                # StaticFiles con fallback a index.html
-│   ├── api/
-│   │   ├── routers/          # clients, ips, subnets, scheduler, env
-│   │   ├── schemas.py        # Esquemas Pydantic
-│   │   ├── security.py       # require_admin (X-Admin-PIN, solo localhost)
-│   │   ├── rate_limit.py     # Límite de intentos de PIN
-│   │   └── deps.py
-│   ├── crud/                 # client, subnet, ip_address, ip_state_history
-│   ├── Models/               # Subnet, Client, IPAddress, IPStateHistory
-│   └── services/             # ping_service, tcp_scanner, wisphub_adapter, range_scanner,
-│                             # evaluation, scan_commit, single_query, subnet_report,
-│                             # scheduler, authorization, env_service
-├── alembic/                  # Migraciones (alembic.ini en la raíz)
-├── frontend/                 # SPA React + Vite + TypeScript
-│   └── src/                  # api/, components/, lib/, pages/, types/, router.tsx
-├── static/
-│   ├── dashboard/            # Dashboard HTML/Bootstrap de respaldo
-│   └── app/                  # Build de la SPA (generado, `npm run build`)
-├── tests/python/             # Pruebas pytest de la API y servicios
-├── demo_*.py                 # Scripts de demostración (CRUD, escaneo, consulta)
-├── requirements.txt / requirements-dev.txt / pytest.ini / .env.example
-└── (heredado Laravel)        # ver "Pendientes y deuda técnica"
+```
+TeleIPAM/
+├── backend/
+│   ├── app/
+│   │   ├── api/
+│   │   │   └── v1/
+│   │   │       ├── subnets.py       # Endpoints CRUD de Subredes
+│   │   │       ├── clients.py       # Endpoints CRUD de Clientes
+│   │   │       ├── ips.py           # Escaneos y gestión de IPs
+│   │   │       └── scheduler.py     # Auditoría y tareas programadas
+│   │   ├── core/
+│   │   │   ├── config.py            # Carga de variables de entorno
+│   │   │   └── database.py          # Configuración de ORM y BD
+│   │   ├── models/                  # Modelos SQLAlchemy / Peewee
+│   │   ├── scanner/                 # Motor de escaneo asíncrono
+│   │   │   ├── ping_runner.py       # Verificación ICMP
+│   │   │   ├── socket_checker.py    # Chequeo de puertos TCP
+│   │   │   └── wisphub_adapter.py   # Adaptador de integración WispHub
+│   │   ├── static/                  # Build servido del frontend
+│   │   └── main.py                  # Punto de entrada FastAPI
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── .env.example
+├── frontend/
+│   ├── src/
+│   │   ├── components/              # Componentes de UI (Grid, Modales, Tables)
+│   │   ├── hooks/                   # Custom Hooks y TanStack Query
+│   │   ├── pages/                   # Vistas principales (Dashboard, Subnets, Clients)
+│   │   ├── services/                # Cliente API HTTP (Axios/Fetch)
+│   │   ├── types/                   # Definiciones TypeScript
+│   │   ├── App.tsx                  # Enrutador principal
+│   │   └── main.tsx
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── tailwind.config.js
+├── docker-compose.yml
+└── README.md
 ```
 
-## Stack
+---
 
-- **Backend:** Python 3.11+, FastAPI, SQLAlchemy 2, Alembic, Pydantic 2, APScheduler, openpyxl (exportación de subredes). Bases de datos: PostgreSQL (`psycopg2`) o MySQL (`PyMySQL`).
-- **Verificación de red:** ping, sockets TCP asíncronos y adaptador de la API de WispHub.
-- **Frontend:** React 19, Vite, TypeScript, Tailwind CSS 4, shadcn/ui (base-ui), TanStack Query v5, React Hook Form + Zod, Sonner.
+## 🛠️ Stack Tecnológico
 
-## Puesta en marcha
+* **Backend:**
+  * Python 3.11+
+  * FastAPI
+  * SQLAlchemy / Peewee ORM
+  * Asyncio (Scanners TCP/ICMP)
+  * APScheduler (Auditorías programadas)
+* **Frontend:**
+  * React 18
+  * TypeScript
+  * Vite
+  * Tailwind CSS + shadcn/ui
+  * TanStack Query (React Query v5)
+* **Base de Datos & Despliegue:**
+  * PostgreSQL / MySQL / SQLite
+  * Docker & Docker Compose
 
-No existe configuración Docker en el repositorio; la ejecución es local.
+---
 
-### Backend
+## 📋 Requisitos del Sistema
+
+Para ejecutar TeleIPAM localmente o en producción, asegúrate de contar con:
+
+1. **Software Base:**
+   * **Python 3.11+** y `pip`
+   * **Node.js 18+** y `npm`
+   * **Docker & Docker Compose** *(Opcional, para despliegue en contenedores)*
+   * Servidor **PostgreSQL 14+** o **MySQL 8+** *(SQLite soportado para pruebas locales)*
+2. **Permisos de Red:**
+   * Permisos de red para envío de paquetes ICMP Ping (Socket RAW / priviligos administrativos en ejecuciones de escaneo en ciertos sistemas).
+   * Acceso de salida hacia la API de WispHub *(si se habilita la integración)*.
+
+---
+
+## ⚙️ Variables de Entorno
+
+Crea un archivo `.env` en el directorio `backend/` tomando como referencia `.env.example`:
+
+```env
+# Configuración del Servidor Backend
+PROJECT_NAME="TeleIPAM"
+API_V1_STR="/api/v1"
+DEBUG=True
+
+# Conexión a Base de Datos
+DATABASE_URL="postgresql://usuario:password@localhost:5432/teleipam_db"
+# Ejemplo SQLite: sqlite:///./teleipam.db
+
+# Configuración de Auditoría y Scanner
+DEFAULT_SCAN_TIMEOUT=2.0
+MAX_CONCURRENT_SCANS=100
+SCAN_INTERVAL_HOURS=6
+
+# Integración WispHub
+WISPHUB_API_URL="https://api.wisphub.net/api/v1"
+WISPHUB_API_KEY="tu_api_key_de_wisphub"
+```
+
+En el directorio `frontend/`, si requiere ajustar el endpoint base:
+
+```env
+VITE_API_BASE_URL="http://localhost:8000/api/v1"
+```
+
+---
+
+## 🚀 Guía de Arranque
+
+### Opción 1: Despliegue con Docker (Recomendado)
 
 ```bash
-python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
+# 1. Clonar el repositorio
+git clone https://github.com/Shock007/TeleIPAM.git
+cd TeleIPAM
+
+# 2. Iniciar servicios con Docker Compose
+docker-compose up --build -d
+```
+
+Acceso:
+* **Frontend SPA:** `http://localhost:8000/app/`
+* **Swagger API Docs:** `http://localhost:8000/docs`
+
+---
+
+### Opción 2: Desarrollo Local Manual
+
+#### 1. Backend (FastAPI)
+
+```bash
+cd backend
+
+# Crear y activar entorno virtual
+python -m venv venv
+source venv/bin/activate   # En Windows: venv\Scripts\activate
+
+# Instalar dependencias
 pip install -r requirements.txt
-cp .env.example .env                              # configurar DATABASE_URL
-alembic upgrade head                              # crea el esquema
+
+# Configurar variables de entorno
+cp .env.example .env
+
+# Iniciar servidor de desarrollo
 uvicorn app.main:app --reload --port 8000
 ```
 
-Swagger: <http://localhost:8000/docs>
+#### 2. Frontend (React + Vite)
 
-### Frontend
+En una nueva terminal:
 
 ```bash
 cd frontend
+
+# Instalar dependencias
 npm install
-npm run dev          # http://localhost:5173/ (proxy de /api hacia :8000)
-npm run build        # compila a ../static/app, servido en http://localhost:8000/app/
+
+# Iniciar servidor de desarrollo con Hot Reload
+npm run dev
 ```
 
-## Variables de entorno
+El frontend estará accesible en `http://localhost:5173/`.
 
-Se leen del `.env` en la raíz (ver `.env.example`) y también se pueden editar desde la página **Variables del entorno** de la SPA.
+#### 3. Build del Frontend para Producción
 
-| Variable | Descripción |
-| :--- | :--- |
-| `DATABASE_URL` | `postgresql+psycopg2://…` o `mysql+pymysql://…` |
-| `SQL_ECHO` | `true` para ver el SQL generado |
-| `PROVIDER_PIN` | PIN que habilita las consultas TCP y protege la edición de variables |
-| `SCHEDULER_ENABLED`, `SCAN_INTERVAL_HOURS`, `SCAN_CONCURRENCY`, `SCAN_TIMEOUT` | Auditoría programada. Se aplican en caliente |
-| `WISPHUB_API_KEY`, `WISPHUB_BASE_URL` | Integración con WispHub (opcional) |
+Para compilar la SPA y servirla desde el backend FastAPI en `/app/`:
 
-**Seguridad de `/api/v1/env`:** solo accesible desde localhost. Si `PROVIDER_PIN` está definido, se exige el header `X-Admin-PIN` (la SPA lo pide en el campo "PIN de administrador"); 5 fallos seguidos bloquean temporalmente (429). Cambiar `DATABASE_URL`, el PIN o WispHub requiere reiniciar el servidor; las claves del scheduler no.
+```bash
+cd frontend
+npm run build
+```
 
-## Endpoints principales
+---
 
-Prefijo `/api/v1`. Documentación completa en `/docs`.
+## 🔌 Endpoints API Principales
 
 | Método | Endpoint | Descripción |
 | :--- | :--- | :--- |
-| `GET/POST/PUT/DELETE` | `/subnets`, `/subnets/{id}` | CRUD de subredes |
-| `GET` | `/subnets/{id}/export` | Exporta el reporte de la subred |
-| `GET/POST/PUT/DELETE` | `/clients`, `/clients/{id}` | CRUD de clientes |
-| `GET` / `POST` | `/ips` | Lista (filtros, paginación) / crea IPs |
-| `GET` | `/ips/stats` | Métricas por estado |
-| `POST` | `/ips/scan` | Escaneo de rango/subred (síncrono o asíncrono `202`) |
-| `POST` | `/ips/scan/commit` | Guarda los resultados de un escaneo |
-| `POST` | `/ips/query` | Consulta de una IP (ping; TCP solo con PIN) |
-| `GET` | `/ips/{ip}/history` | Historial de estados |
-| `PUT` | `/ips/{ip}/assign` | Asigna/desasigna cliente y estado |
-| `GET` / `POST` | `/scheduler/status`, `/scheduler/run-now` | Estado y ejecución inmediata de la auditoría |
-| `GET` / `PUT` | `/env` | Variables de entorno (admin, localhost) |
-| `GET` | `/health` | Verificación de salud |
+| `GET` | `/api/v1/subnets` | Lista de subredes y rangos CIDR registrados. |
+| `POST` | `/api/v1/subnets` | Creación de una nueva subred. |
+| `GET` | `/api/v1/clients` | Obtiene el listado de clientes registrados. |
+| `GET` | `/api/v1/ips` | Consulta de direcciones IP filtradas por subred o estado (`FREE`, `ASSIGNED`, `ACTIVE`). |
+| `POST` | `/api/v1/ips/scan` | Dispara un escaneo manual sobre un rango de IPs o subred (Síncrono/Asíncrono). |
+| `PUT` | `/api/v1/ips/{ip}/assign` | Asigna o libera una IP a un cliente específico. |
+| `GET` | `/api/v1/scheduler/status` | Devuelve el estado de la tarea programada de auditoría. |
+| `POST` | `/api/v1/scheduler/run-now` | Forzado manual de la auditoría global de la red. |
 
-## Pruebas
+---
 
-```bash
-pip install -r requirements-dev.txt
-pytest tests/python -v
-```
+## 📄 Licencia
 
-CI de Python: `.github/workflows/python-tests.yml` (3.11 y 3.12).
-
-## Pendientes y deuda técnica
-
-- **Laravel es un esqueleto heredado, no se usa.** El sistema real es 100 % FastAPI + React. Los siguientes archivos pertenecen al esqueleto y no participan en la aplicación: `composer.json`, `artisan`, `package.json` y `vite.config.js` de la raíz, `phpunit.xml`, `bootstrap/`, `config/`, `public/`, `routes/`, `resources/`, `database/`, `storage/`, `tests/Feature`, `tests/Unit`, `tests/TestCase.php`, `app/Http/`, `app/Providers/`, `app/Models/User.php` y `.github/workflows/tests.yml`. **Recomendación: eliminarlos** para reducir ruido (`app/Models/` se conserva: contiene los modelos Python). También conviene reemplazar `CLAUDE.md`/`AGENTS.md`, que describen Laravel.
-- **Docker (Fase 6):** pendiente. No hay `Dockerfile` ni `docker-compose.yml`.
-- `main.py` en la raíz es un stub sin uso; el entrypoint real es `app/main.py`.
-- Falta archivo `LICENSE`.
+Este proyecto está bajo la Licencia **MIT**. Consulta el archivo `LICENSE` para obtener más información.
