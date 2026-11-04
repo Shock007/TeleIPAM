@@ -14,7 +14,7 @@ El sistema clasifica las direcciones IP según la correlación entre la asignaci
 
 ---
 
-## 📐 Arquitectura del Sistema
+## Arquitectura del Sistema
 
 TeleIPAM emplea una arquitectura desacoplada basada en microservicios/capas para optimizar el rendimiento y la velocidad de escaneo masivo de subredes:
 
@@ -48,7 +48,7 @@ TeleIPAM emplea una arquitectura desacoplada basada en microservicios/capas para
 
 ---
 
-## 💾 Modelo de Datos
+## Modelo de Datos
 
 El esquema relacional refleja la estructura del inventario de red, la relación con los clientes y el registro histórico de auditorías:
 
@@ -201,7 +201,7 @@ VITE_API_BASE_URL="http://localhost:8000/api/v1"
 
 ---
 
-## 🚀 Guía de Arranque
+## Guía de Arranque
 
 ### Opción 1: Despliegue con Docker (Recomendado)
 
@@ -268,7 +268,7 @@ npm run build
 
 ---
 
-## 🔌 Endpoints API Principales
+## 👀 Endpoints API Principales
 
 | Método | Endpoint | Descripción |
 | :--- | :--- | :--- |
