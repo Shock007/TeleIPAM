@@ -4,7 +4,7 @@
 
 ---
 
-## 🟢 Estados de las Direcciones IP
+## 🟢 Estados de las Direcciones IP.
 
 El sistema clasifica las direcciones IP según la correlación entre la asignación administrativa y la actividad detectada en la red:
 
